@@ -7,59 +7,56 @@ from keras.models import Sequential
 from keras.layers import Dense, LSTM, Dropout
 import math
 
-class YahooFinanceCompanyInfo:
-    def __init__(self):
-        self.ticker = None
-
-    def set_ticker(self, ticker):
-        self.ticker = ticker
-        
-    def get_company_name(self):
-        if self.ticker is None:
-            raise ValueError("Ticker not set. Please use set_ticker() to set the ticker before fetching data.")
-        try:
-            stock = yf.Ticker(self.ticker)
-            company_info = stock.info
-            company_name = company_info.get('longName', 'N/A')
-            return company_name
-        except Exception as e:
-            return str(e)
+'''
+    The class below is used to collect our stock data with the Yahoo Finance API key. 
+    We are compressing our data into a dict format as a way to have a key: value method instead 
+    of having all the data laid out in a table. 
+'''
+def fetch_stock_data(ticker, startDate, endDate) -> dict():
+    try:
+        stock_data = yf.download(ticker, start=startDate, end=endDate)
+        if stock_data is not None and not stock_data.empty:
+            company_name = yf.Ticker(ticker).info['longName']
+            columns = stock_data.columns
+            stock_data_result = {
+                'company_name': company_name,
+                'data': {col: stock_data[col].tolist() for col in columns}
+            }
+            return stock_data_result
+        else:
+            return {'company_name': 'N/A', 'data': {}}
+    except Exception as e:
+        print('Error:', str(e))
+        return {'company_name': 'N/A', 'data': {}}
     
-    def get_company_start_date(self, startDate):
-        self.startDate = startDate
-    
-    def get_company_end_date(self, endDate):
-        self.endDate = endDate
-
-    def fetch_stock_data(self):
-        if self.ticker is None:
-            raise ValueError("Ticker not set. Please use set_ticker() to set the ticker before fetching data.")
-        try:
-            stock_data = yf.download(self.ticker, start= self.startDate, end=self.endDate)
-            return stock_data
-        except Exception as e:
-            print('Error')
-            return None
+'''
+    The class below is used for taking the collected data from the user 
+    and essentially importing the data for training and testing. 
+'''
 
 class dataCollect():
-    def __init__(self, company):
-        self.ticker = company.ticker
-        self.startDate = company.startDate
-        self.endDate = company.endDate
+    def __init__(self, ticker, startDate, endDate):
+        self.ticker = ticker
+        self.startDate = startDate
+        self.endDate = endDate
 
     def gather_data(self):
-        try:
-            stock_data = yf.download(self.ticker, self.startDate, self.endDate)
-            return stock_data
-        except Exception as e:
-            print('Error')
-            return None
+        stock_data = yf.download(self.ticker, self.startDate, self.endDate)
+        return stock_data
 
     def compress_data_to_df(self):
         stock_data = self.gather_data()
         if stock_data is not None:
             df = pd.DataFrame(stock_data)
             return df
+        else:
+            return None
+        
+    def compress_data_to_dict(self):
+        stock_data = self.gather_data()
+        if stock_data is not None:
+            data_dict = {'Date': stock_data.index, 'Close': stock_data['Close'].tolist()}
+            return data_dict
         else:
             return None
 
@@ -115,7 +112,4 @@ def create_and_compile_model(stock_data_df):
 
     rmse=np.sqrt(np.mean(((predictions- y_test)**2)))
         
-    return rmse
-
-
-
+    return model, rmse
